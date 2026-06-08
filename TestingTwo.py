@@ -118,6 +118,7 @@ if __name__ == "__main__":
         elif choice == "2":  # DNS QUERY
             ip = input("Ziel-IP-Adresse: ")
             port = int(input("Ziel-Port: "))
+            threads = int(input("Anzahl der Threads: "))
 
             stop_event.clear()
 
